@@ -1,0 +1,28 @@
+# Gradle / Android build output
+.gradle/
+build/
+app/build/
+
+# Local IDE and machine state
+.idea/
+*.iml
+local.properties
+
+# Generated caches
+*.log
+*.tmp
+__pycache__/
+*.pyc
+
+# Local debugging/reference screenshots
+BUGS/
+Ox_API.png
+UI_Assets_Stitch/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Secrets / environment files
+.env
+.env.*

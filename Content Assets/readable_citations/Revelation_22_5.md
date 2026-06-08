@@ -1,0 +1,3 @@
+# Revelation 22:5
+
+And night shall be no more: and they shall not need the light of the lamp, nor the light of the sun, because the Lord God shall enlighten them, and they shall reign for ever and ever.

@@ -1,0 +1,2 @@
+# The backend currently uses only the Python standard library.
+# This file is intentionally present so Render's Python build step is explicit.

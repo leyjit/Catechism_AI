@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: catechism-ai-backend
+    runtime: python
+    plan: free
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python backend/server.py"
+    envVars:
+      - key: CATECHISM_BACKEND_HOST
+        value: 0.0.0.0
+      - key: CATECHISM_LLM_MODEL
+        value: gemma-4-31b-it
+      - key: CATECHISM_LLM_FALLBACK_MODELS
+        value: gemma-4-26b-a4b-it
+      - key: CATECHISM_LLM_BASE_URL
+        sync: false
+      - key: CATECHISM_LLM_API_KEY
+        sync: false

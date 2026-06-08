@@ -1,0 +1,3 @@
+# Matthew 25:41
+
+Then he shall say to them also that shall be on his left hand: Depart from me, you cursed, into everlasting fire which was prepared for the devil and his angels.
