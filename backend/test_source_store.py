@@ -22,6 +22,10 @@ class SourceStoreTest(unittest.TestCase):
         result = clean_answer("<thought>hidden planning</thought>The answer.")
         self.assertEqual(result, "The answer.")
 
+    def test_clean_answer_removes_orphan_reasoning_tags(self):
+        result = clean_answer("</thought>Catholics recognize saints because...")
+        self.assertEqual(result, "Catholics recognize saints because...")
+
 
 if __name__ == "__main__":
     unittest.main()

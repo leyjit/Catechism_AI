@@ -354,8 +354,27 @@ def execute_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
 def clean_answer(answer: str) -> str:
     cleaned = re.sub(r"<thought>.*?</thought>", "", answer, flags=re.I | re.S)
     cleaned = re.sub(r"<think>.*?</think>", "", cleaned, flags=re.I | re.S)
+    cleaned = re.sub(r"</?(?:thought|think)>", "", cleaned, flags=re.I)
     cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
     return cleaned.strip()
+
+
+def friendly_model_error(error_text: str) -> str:
+    lowered = error_text.lower()
+    if "timed out" in lowered or "timeout" in lowered:
+        return (
+            "The cloud model is taking too long to answer. This usually happens "
+            "during high demand or Render cold starts. Please try again in a moment."
+        )
+    if "high demand" in lowered or "internal error" in lowered or "http 500" in lowered:
+        return (
+            "The cloud model is temporarily unavailable. Please try again in a moment."
+        )
+    if "rate" in lowered or "quota" in lowered or "429" in lowered:
+        return (
+            "The cloud model quota or rate limit was reached. Please wait a bit and try again."
+        )
+    return "The cloud model could not complete the answer. Please try again in a moment."
 
 
 def llm_chat(
@@ -404,7 +423,7 @@ def llm_chat_with_fallbacks(
         except Exception as exc:
             errors.append(f"{model}: {exc}")
             print(f"Model {model} failed: {exc}", file=sys.stderr)
-    raise RuntimeError("All configured models failed. " + " | ".join(errors))
+    raise RuntimeError(friendly_model_error(" | ".join(errors)))
 
 
 def answer_question(question: str) -> dict[str, Any]:

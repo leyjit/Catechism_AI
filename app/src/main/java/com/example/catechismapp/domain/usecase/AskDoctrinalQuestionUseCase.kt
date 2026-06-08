@@ -351,9 +351,7 @@ Rules:
                             }
                         }
 
-                val message = backendError
-                    ?.let { "The backend harness returned an error: $it" }
-                    ?: MSG_BACKEND_UNAVAILABLE
+                val message = backendError ?: MSG_BACKEND_UNAVAILABLE
                 persistErrorTurns(question, emptyList(), emptyList(), message)
                 QueryResult(
                     question = question,
