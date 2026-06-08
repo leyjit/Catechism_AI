@@ -48,7 +48,7 @@ class ChatViewModel @Inject constructor(
 
     // Load and reactively hydrate database messages to domain ChatMessage objects
     val messages: StateFlow<List<ChatMessage>> = conversationDao.getAllMessages()
-        .map { entities -> hydrateMessages(entities) }
+        .map { entities -> orderLatestConversationsFirst(hydrateMessages(entities)) }
         .flowOn(Dispatchers.IO)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -153,5 +153,20 @@ class ChatViewModel @Inject constructor(
                 )
             }
         }
+    }
+
+    private fun orderLatestConversationsFirst(messages: List<ChatMessage>): List<ChatMessage> {
+        if (messages.isEmpty()) return emptyList()
+
+        val turns = mutableListOf<MutableList<ChatMessage>>()
+        messages.forEach { message ->
+            if (message.role == "user" || turns.isEmpty()) {
+                turns.add(mutableListOf(message))
+            } else {
+                turns.last().add(message)
+            }
+        }
+
+        return turns.asReversed().flatten()
     }
 }

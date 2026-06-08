@@ -3,6 +3,7 @@ package com.example.catechismapp.ui.chat
 import com.example.catechismapp.data.local.BibleVerseDao
 import com.example.catechismapp.data.local.CatechismDao
 import com.example.catechismapp.data.local.ConversationDao
+import com.example.catechismapp.data.local.entity.ConversationEntity
 import com.example.catechismapp.data.preferences.UserPreferences
 import com.example.catechismapp.domain.model.AnswerErrorType
 import com.example.catechismapp.domain.model.QueryResult
@@ -10,6 +11,7 @@ import com.example.catechismapp.domain.usecase.AskDoctrinalQuestionUseCase
 import io.mockk.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.*
 import org.junit.After
@@ -57,6 +59,31 @@ class ChatViewModelTest {
         val state = viewModel.uiState.value
         assertFalse(state.isLoading)
         assertNull(state.error)
+    }
+
+    @Test
+    fun messages_ordersLatestConversationFirst_butKeepsQuestionBeforeAnswer() = runTest(testDispatcher) {
+        val orderedMessages = listOf(
+            ConversationEntity(id = 1, role = "user", content = "Old question", timestamp = 1L),
+            ConversationEntity(id = 2, role = "assistant", content = "Old answer", timestamp = 2L),
+            ConversationEntity(id = 3, role = "user", content = "New question", timestamp = 3L),
+            ConversationEntity(id = 4, role = "assistant", content = "New answer", timestamp = 4L)
+        )
+        every { conversationDao.getAllMessages() } returns flowOf(orderedMessages)
+
+        viewModel = ChatViewModel(
+            askDoctrinalQuestion = askUseCase,
+            conversationDao = conversationDao,
+            catechismDao = catechismDao,
+            bibleVerseDao = bibleVerseDao,
+            userPreferences = userPreferences
+        )
+
+        val messages = viewModel.messages.first { it.isNotEmpty() }
+        assertEquals(
+            listOf("New question", "New answer", "Old question", "Old answer"),
+            messages.map { it.content }
+        )
     }
 
     @Test

@@ -42,10 +42,10 @@ fun ChatScreen(
 
     val listState = rememberLazyListState()
 
-    // Scroll to bottom when new messages arrive or loading begins
+    // Latest conversation turns are shown first.
     LaunchedEffect(messages.size, uiState.isLoading) {
-        if (messages.isNotEmpty()) {
-            listState.animateScrollToItem(messages.size - 1)
+        if (messages.isNotEmpty() || uiState.isLoading) {
+            listState.animateScrollToItem(0)
         }
     }
 
@@ -115,11 +115,7 @@ fun ChatScreen(
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        items(messages) { message ->
-                            MessageBubble(message = message)
-                        }
-
-                        // Add loading spinner at bottom
+                        // Add loading spinner where the newest answer will appear.
                         if (uiState.isLoading) {
                             item {
                                 Box(
@@ -135,6 +131,10 @@ fun ChatScreen(
                                     )
                                 }
                             }
+                        }
+
+                        items(messages) { message ->
+                            MessageBubble(message = message)
                         }
                     }
                 }
