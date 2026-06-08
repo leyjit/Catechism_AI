@@ -5,7 +5,7 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
-val backendBaseUrl = (project.findProperty("BACKEND_BASE_URL") as String?)
+val backendBaseUrl = providers.gradleProperty("BACKEND_BASE_URL").orNull
     ?: "http://127.0.0.1:8765/"
 
 android {
