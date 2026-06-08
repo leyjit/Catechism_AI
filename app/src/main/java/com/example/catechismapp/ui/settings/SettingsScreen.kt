@@ -1,27 +1,45 @@
 package com.example.catechismapp.ui.settings
 
-import android.content.Intent
-import android.net.Uri
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.catechismapp.BuildConfig
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -30,21 +48,10 @@ fun SettingsScreen(
     onNavigateBack: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
-    val apiKey by viewModel.apiKey.collectAsState()
-    var inputKey by remember { mutableStateOf("") }
-    var isKeyVisible by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
 
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
-    val context = LocalContext.current
-
-    // Synchronize initial input key with stored key when loaded
-    LaunchedEffect(apiKey) {
-        if (apiKey != null) {
-            inputKey = apiKey!!
-        }
-    }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -81,104 +88,36 @@ fun SettingsScreen(
                 .navigationBarsPadding(),
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
-            // Section 1: AI Configuration
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    text = "AI CONFIGURATION",
+                    text = "BACKEND",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.Bold
                 )
 
-                OutlinedTextField(
-                    value = inputKey,
-                    onValueChange = { inputKey = it },
-                    label = { Text("Gemini API Key") },
-                    placeholder = { Text("Enter your Gemini API key") },
-                    singleLine = true,
-                    visualTransformation = if (isKeyVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    trailingIcon = {
-                        Text(
-                            text = if (isKeyVisible) "Hide" else "Show",
-                            color = MaterialTheme.colorScheme.primary,
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier
-                                .padding(end = 12.dp)
-                                .clickable { isKeyVisible = !isKeyVisible }
-                        )
-                    },
-                    modifier = Modifier.fillMaxWidth()
+                Text(
+                    text = "Hosted Catechism service",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.Bold
                 )
 
                 Text(
-                    text = "Your key is stored securely on this device only.",
+                    text = BuildConfig.BACKEND_BASE_URL,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Button(
-                        onClick = {
-                            if (inputKey.isNotBlank()) {
-                                viewModel.saveApiKey(inputKey)
-                                coroutineScope.launch {
-                                    snackbarHostState.showSnackbar("API key saved.")
-                                }
-                            } else {
-                                viewModel.clearApiKey()
-                                coroutineScope.launch {
-                                    snackbarHostState.showSnackbar("API key cleared.")
-                                }
-                            }
-                        },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary
-                        )
-                    ) {
-                        Text("Save API Key")
-                    }
-
-                    if (apiKey != null && apiKey!!.isNotBlank()) {
-                        OutlinedButton(
-                            onClick = {
-                                inputKey = ""
-                                viewModel.clearApiKey()
-                                coroutineScope.launch {
-                                    snackbarHostState.showSnackbar("API key cleared.")
-                                }
-                            }
-                        ) {
-                            Text("Clear")
-                        }
-                    }
-                }
-
                 Text(
-                    text = "Get a free key at aistudio.google.com →",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.secondary,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier
-                        .padding(vertical = 4.dp)
-                        .clickable {
-                            val intent = Intent(
-                                Intent.ACTION_VIEW,
-                                Uri.parse("https://aistudio.google.com")
-                            )
-                            context.startActivity(intent)
-                        }
+                    text = "AI keys are stored on the hosted backend, not on this device.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
             HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
 
-            // Section 2: Data Management
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
                     text = "DATA",
@@ -219,7 +158,6 @@ fun SettingsScreen(
 
             HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
 
-            // Section 3: About
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
                     text = "ABOUT",
@@ -246,11 +184,16 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+
+                Text(
+                    text = "Vibe-coded on 4 June 2026 by LeejayT",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
 
-    // Confirmation Dialog for Clearing Conversation History
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
