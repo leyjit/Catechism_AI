@@ -6,7 +6,7 @@ plugins {
 }
 
 val backendBaseUrl = providers.gradleProperty("BACKEND_BASE_URL").orNull
-    ?: "http://127.0.0.1:8765/"
+    ?: "https://catechism-ai.onrender.com/"
 
 android {
     namespace = "com.example.catechismapp"
