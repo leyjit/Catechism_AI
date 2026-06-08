@@ -74,6 +74,8 @@ class AskDoctrinalQuestionUseCase @Inject constructor(
             "The connection was interrupted before a response arrived. Please check your network and try again."
         private const val MSG_BACKEND_UNAVAILABLE =
             "The backend harness is not reachable. Start the local backend and make sure USB port forwarding is active, then try again."
+        private const val MSG_BACKEND_TIMEOUT =
+            "The backend harness is taking too long to answer. This can happen while Render wakes up or the cloud model is busy. Please try again in a moment."
 
         var backendHarnessEnabledOverride: Boolean? = null
 
@@ -363,7 +365,12 @@ Rules:
             }
         } catch (e: Exception) {
             Log.e(TAG, "Backend harness request failed: ${e.message}", e)
-            persistErrorTurns(question, emptyList(), emptyList(), MSG_BACKEND_UNAVAILABLE)
+            val message = if (e is java.net.SocketTimeoutException || e is java.io.InterruptedIOException) {
+                MSG_BACKEND_TIMEOUT
+            } else {
+                MSG_BACKEND_UNAVAILABLE
+            }
+            persistErrorTurns(question, emptyList(), emptyList(), message)
             QueryResult(
                 question = question,
                 paragraphs = emptyList(),

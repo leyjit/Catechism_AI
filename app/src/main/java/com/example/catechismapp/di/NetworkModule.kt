@@ -35,8 +35,8 @@ object NetworkModule {
         }
 
         return OkHttpClient.Builder()
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(60, TimeUnit.SECONDS)   // LLM responses can take 5-15s
+            .connectTimeout(45, TimeUnit.SECONDS)
+            .readTimeout(240, TimeUnit.SECONDS)   // Hosted LLM/tool loops can be slow on cold start
             .writeTimeout(30, TimeUnit.SECONDS)
             .addInterceptor(loggingInterceptor)
             .build()
