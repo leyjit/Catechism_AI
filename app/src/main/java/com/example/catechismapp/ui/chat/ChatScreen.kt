@@ -24,6 +24,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.catechismapp.domain.model.ChatMessage
 import com.example.catechismapp.ui.chat.components.MessageBubble
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -118,17 +119,32 @@ fun ChatScreen(
                         // Add loading spinner where the newest answer will appear.
                         if (uiState.isLoading) {
                             item {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 12.dp),
-                                    contentAlignment = Alignment.Center
+                                Column(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(32.dp),
-                                        color = MaterialTheme.colorScheme.primary,
-                                        strokeWidth = 3.dp
-                                    )
+                                    uiState.pendingQuestion?.let { pendingQuestion ->
+                                        MessageBubble(
+                                            message = ChatMessage(
+                                                id = Int.MIN_VALUE,
+                                                role = "user",
+                                                content = pendingQuestion,
+                                                timestamp = System.currentTimeMillis()
+                                            )
+                                        )
+                                    }
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 12.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(32.dp),
+                                            color = MaterialTheme.colorScheme.primary,
+                                            strokeWidth = 3.dp
+                                        )
+                                    }
                                 }
                             }
                         }

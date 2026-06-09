@@ -40,8 +40,8 @@ val Typography = Typography(
     bodyMedium = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.Normal,
-        fontSize = 14.sp,
-        lineHeight = 22.sp, // Generous line height for reading comfort
+        fontSize = 16.sp,
+        lineHeight = 24.sp, // Generous line height for reading comfort
         letterSpacing = 0.25.sp
     ),
     bodySmall = TextStyle(

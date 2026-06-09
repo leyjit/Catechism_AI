@@ -22,6 +22,7 @@ import javax.inject.Inject
 
 data class ChatUiState(
     val isLoading: Boolean = false,
+    val pendingQuestion: String? = null,
     val error: String? = null
 )
 
@@ -56,11 +57,12 @@ class ChatViewModel @Inject constructor(
         if (question.trim().isBlank()) return
         if (_uiState.value.isLoading) return
 
-        _uiState.value = ChatUiState(isLoading = true, error = null)
+        val trimmedQuestion = question.trim()
+        _uiState.value = ChatUiState(isLoading = true, pendingQuestion = trimmedQuestion, error = null)
 
         viewModelScope.launch {
             try {
-                val result = askDoctrinalQuestion(question)
+                val result = askDoctrinalQuestion(trimmedQuestion)
                 
                 // Only UNAUTHORIZED gets a snackbar — the user must act (go to Settings).
                 // All other error types (rate-limited, server error, content blocked, network)
@@ -88,9 +90,9 @@ class ChatViewModel @Inject constructor(
                     errorMsg
                 }
 
-                _uiState.value = ChatUiState(isLoading = false, error = finalError)
+                _uiState.value = ChatUiState(isLoading = false, pendingQuestion = null, error = finalError)
             } catch (e: Exception) {
-                _uiState.value = ChatUiState(isLoading = false, error = "An unexpected error occurred: ${e.localizedMessage}")
+                _uiState.value = ChatUiState(isLoading = false, pendingQuestion = null, error = "An unexpected error occurred: ${e.localizedMessage}")
             }
         }
     }
