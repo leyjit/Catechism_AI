@@ -25,6 +25,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.catechismapp.domain.model.ChatMessage
+import com.example.catechismapp.ui.chat.components.Citation
+import com.example.catechismapp.ui.chat.components.CitationDialog
 import com.example.catechismapp.ui.chat.components.MessageBubble
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -40,6 +42,7 @@ fun ChatScreen(
     var inputText by remember { mutableStateOf("") }
     var isBannerDismissed by remember { mutableStateOf(false) }
     var showClearConfirmDialog by remember { mutableStateOf(false) }
+    var selectedCitation by remember { mutableStateOf<Citation?>(null) }
 
     val listState = rememberLazyListState()
 
@@ -55,7 +58,7 @@ fun ChatScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = "Catholic Catechist",
+                        text = "Catechist AI",
                         style = MaterialTheme.typography.titleLarge,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -124,14 +127,15 @@ fun ChatScreen(
                                     verticalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
                                     uiState.pendingQuestion?.let { pendingQuestion ->
-                                        MessageBubble(
-                                            message = ChatMessage(
-                                                id = Int.MIN_VALUE,
-                                                role = "user",
-                                                content = pendingQuestion,
-                                                timestamp = System.currentTimeMillis()
-                                            )
-                                        )
+                                MessageBubble(
+                                    message = ChatMessage(
+                                        id = Int.MIN_VALUE,
+                                        role = "user",
+                                        content = pendingQuestion,
+                                        timestamp = System.currentTimeMillis()
+                                    ),
+                                    onCitationClick = { selectedCitation = it }
+                                )
                                     }
                                     Box(
                                         modifier = Modifier
@@ -150,7 +154,10 @@ fun ChatScreen(
                         }
 
                         items(messages) { message ->
-                            MessageBubble(message = message)
+                            MessageBubble(
+                                message = message,
+                                onCitationClick = { selectedCitation = it }
+                            )
                         }
                     }
                 }
@@ -178,6 +185,14 @@ fun ChatScreen(
                 isEnabled = !uiState.isLoading
             )
         }
+    }
+
+    // Citation dialog
+    selectedCitation?.let { citation ->
+        CitationDialog(
+            citation = citation,
+            onDismiss = { selectedCitation = null }
+        )
     }
 
     // Confirmation Clear Dialog

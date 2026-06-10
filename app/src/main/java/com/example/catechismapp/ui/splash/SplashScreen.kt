@@ -55,7 +55,7 @@ fun SplashScreen(
 
             // App Name
             Text(
-                text = "Catholic Catechist",
+                text = "Catechist AI",
                 style = MaterialTheme.typography.titleLarge.copy(
                     fontSize = 28.sp,
                     fontFamily = FontFamily.Serif

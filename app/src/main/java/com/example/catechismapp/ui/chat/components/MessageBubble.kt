@@ -22,12 +22,15 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.catechismapp.domain.model.ChatMessage
+import com.example.catechismapp.domain.model.BibleVerse
+import com.example.catechismapp.domain.model.CatechismParagraph
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MessageBubble(
     message: ChatMessage,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onCitationClick: (Citation) -> Unit = {}
 ) {
     var isSourcesExpanded by remember { mutableStateOf(false) }
     val clipboardManager = LocalClipboardManager.current
@@ -43,6 +46,11 @@ fun MessageBubble(
     // Determine if the Sources section should show (assistant only and has sources)
     val hasSources = !message.isUser && (message.paragraphs.isNotEmpty() || message.verses.isNotEmpty())
 
+    // Precompute citation keys from hydrated source data (assistant messages only)
+    val citationKeys = remember(message.paragraphs, message.verses) {
+        buildCitationKeys(message.paragraphs, message.verses)
+    }
+
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -50,7 +58,7 @@ fun MessageBubble(
         horizontalAlignment = if (message.isUser) Alignment.End else Alignment.Start
     ) {
         // Message bubble
-        Surface(
+    Surface(
             shape = RoundedCornerShape(
                 topStart = 16.dp,
                 topEnd = 16.dp,
@@ -63,15 +71,18 @@ fun MessageBubble(
                 MaterialTheme.colorScheme.surfaceVariant
             },
             tonalElevation = if (message.isUser) 0.dp else 1.dp,
-            modifier = Modifier
-                .widthIn(max = 290.dp)
-                .combinedClickable(
-                    onClick = {},
-                    onLongClick = {
-                        clipboardManager.setText(AnnotatedString(message.content))
-                        Toast.makeText(context, "Message copied", Toast.LENGTH_SHORT).show()
-                    }
-                )
+            modifier = if (message.isUser) {
+                Modifier
+                    .widthIn(max = 290.dp)
+                    .combinedClickable(
+                        onClick = {},
+                        onLongClick = {
+                            copyPlainTextToClipboard(message.content, clipboardManager, context)
+                        }
+                    )
+            } else {
+                Modifier.widthIn(max = 290.dp)
+            }
         ) {
             if (message.isUser) {
                 Text(
@@ -85,6 +96,11 @@ fun MessageBubble(
                     markdown = message.content,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    citationKeys = citationKeys,
+                    onOpenCitation = { key -> resolveCitationClick(key, message, onCitationClick) },
+                    onCopyRequested = {
+                        copyPlainTextToClipboard(message.content, clipboardManager, context)
+                    },
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
                 )
             }
@@ -128,6 +144,100 @@ fun MessageBubble(
             }
         }
     }
+}
+
+private fun buildCitationKeys(
+    paragraphs: List<CatechismParagraph>,
+    verses: List<BibleVerse>
+): Set<String> {
+    val keys = mutableSetOf<String>()
+    paragraphs.forEach { para ->
+        keys.add("CCC §${para.id}")
+        keys.add("CCC ${para.id}")
+    }
+    verses.forEach { verse ->
+        keys.add(verse.reference)
+    }
+    return keys
+}
+
+private fun normalizeCitationKey(key: String): String =
+    key.lowercase()
+        .replace("§", " ")
+        .replace("paragraph", " ")
+        .replace(Regex("\\s+"), " ")
+        .trim()
+
+private fun resolveCitationClick(
+    clickedKey: String,
+    message: ChatMessage,
+    onCitationClick: (Citation) -> Unit
+) {
+    if (message.isUser) return
+
+    val normalizedClicked = normalizeCitationKey(clickedKey)
+
+    // Try paragraph lookup
+    for (para in message.paragraphs) {
+        val paraKeys = listOf(
+            normalizeCitationKey("CCC §${para.id}"),
+            normalizeCitationKey("CCC ${para.id}")
+        )
+        if (normalizedClicked in paraKeys) {
+            onCitationClick(Citation.CCC(para))
+            return
+        }
+    }
+
+    // Try verse lookup — handle ranges by normalizing to first verse
+    val normalizedClickedForVerse = firstVerseKeyIfRange(normalizedClicked)
+    for (verse in message.verses) {
+        val normalizedRef = normalizeCitationKey(verse.reference)
+        if (normalizedClickedForVerse == normalizedRef) {
+            onCitationClick(Citation.Bible(verse))
+            return
+        }
+    }
+}
+
+private fun firstVerseKeyIfRange(normalizedKey: String): String {
+    val rangeMatch = Regex("""^(.*\d+):(\d+)\s*[-–—]\s*(\d+)$""").find(normalizedKey)
+    return if (rangeMatch != null) {
+        "${rangeMatch.groupValues[1]}:${rangeMatch.groupValues[2]}"
+    } else {
+        normalizedKey
+    }
+}
+
+private fun copyPlainTextToClipboard(
+    rawText: String,
+    clipboardManager: androidx.compose.ui.platform.ClipboardManager,
+    context: android.content.Context
+) {
+    clipboardManager.setText(AnnotatedString(toPlainCopyText(rawText)))
+    Toast.makeText(context, "Message copied", Toast.LENGTH_SHORT).show()
+}
+
+private fun toPlainCopyText(rawText: String): String {
+    val linkRegex = Regex("""\[(.+?)]\((https?://[^)\s]+)\)""")
+    return rawText
+        .lines()
+        .joinToString("\n") { line ->
+            val trimmed = line.trim()
+            when {
+                trimmed.startsWith("#") -> trimmed.dropWhile { it == '#' }.trim()
+                trimmed.startsWith("- ") || trimmed.startsWith("* ") -> "• ${trimmed.drop(2).trim()}"
+                Regex("""^\d+\.\s+""").containsMatchIn(trimmed) -> trimmed
+                else -> trimmed
+            }
+        }
+        .replace("**", "")
+        .replace("`", "")
+        .replace(linkRegex) { match ->
+            match.groupValues[1]
+        }
+        .replace(Regex("""\s+\n"""), "\n")
+        .trim()
 }
 
 @Composable

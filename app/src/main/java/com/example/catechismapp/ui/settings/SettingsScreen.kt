@@ -159,7 +159,7 @@ fun SettingsScreen(
                 )
 
                 Text(
-                    text = "Catholic Catechist",
+                    text = "Catechist AI",
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.Bold
