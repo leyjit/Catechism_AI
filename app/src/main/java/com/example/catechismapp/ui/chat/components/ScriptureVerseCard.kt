@@ -63,10 +63,10 @@ fun ScriptureVerseCard(
             if (isExpanded) {
                 Text(
                     text = verse.text,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSecondaryContainer,
                     fontStyle = FontStyle.Italic,
-                    lineHeight = MaterialTheme.typography.bodySmall.lineHeight
+                    lineHeight = MaterialTheme.typography.bodyMedium.lineHeight
                 )
             } else {
                 val previewText = if (verse.text.length > 80) {
@@ -76,7 +76,7 @@ fun ScriptureVerseCard(
                 }
                 Text(
                     text = previewText,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f),
                     fontStyle = FontStyle.Italic,
                     maxLines = 1,

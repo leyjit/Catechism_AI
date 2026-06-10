@@ -21,6 +21,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -29,6 +30,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -39,6 +41,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -48,6 +51,7 @@ fun SettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
+    val fontScalePercent by viewModel.fontScalePercent.collectAsState()
 
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
@@ -102,9 +106,37 @@ fun SettingsScreen(
                 )
 
                 Text(
-                    text = "Douay-Rheims Bible (Challoner Revision, A.D. 1749–1752)",
+                    text = "Douay-Rheims Bible (Challoner Revision, A.D. 1749-1752)",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = "TEXT SIZE",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Text(
+                    text = "$fontScalePercent%",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Slider(
+                    value = fontScalePercent.toFloat(),
+                    onValueChange = { value ->
+                        viewModel.updateFontScalePercent(value.roundToInt())
+                    },
+                    valueRange = 90f..130f,
+                    steps = 3,
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
 

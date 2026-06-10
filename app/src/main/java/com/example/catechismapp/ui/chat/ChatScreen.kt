@@ -1,33 +1,48 @@
 package com.example.catechismapp.ui.chat
 
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.catechismapp.domain.model.ChatMessage
 import com.example.catechismapp.ui.chat.components.Citation
 import com.example.catechismapp.ui.chat.components.CitationDialog
 import com.example.catechismapp.ui.chat.components.MessageBubble
+import com.example.catechismapp.ui.chat.components.MessageInputBar
+import com.example.catechismapp.util.findActivity
+import com.example.catechismapp.voice.VoiceInputState
+import com.example.catechismapp.voice.rememberVoiceInputController
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -39,14 +54,132 @@ fun ChatScreen(
     val uiState by viewModel.uiState.collectAsState()
     val isApiKeyMissing by viewModel.isApiKeyMissing.collectAsState()
 
-    var inputText by remember { mutableStateOf("") }
+    val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
+    val snackbarHostState = remember { SnackbarHostState() }
+    val snackbarScope = rememberCoroutineScope()
+
+    var inputText by rememberSaveable { mutableStateOf("") }
+    var isFieldFocused by remember { mutableStateOf(false) }
+    var hasRequestedMicPermission by rememberSaveable { mutableStateOf(false) }
+    var showPermissionRationaleDialog by remember { mutableStateOf(false) }
+    var showOpenMicSettingsDialog by remember { mutableStateOf(false) }
+
     var isBannerDismissed by remember { mutableStateOf(false) }
     var showClearConfirmDialog by remember { mutableStateOf(false) }
     var selectedCitation by remember { mutableStateOf<Citation?>(null) }
 
+    val focusRequester = remember { FocusRequester() }
+    val isInputEnabled = !uiState.isLoading
+    val sendQuestion: (String) -> Unit = { question ->
+        val trimmed = question.trim()
+        if (trimmed.isNotEmpty()) {
+            viewModel.sendQuestion(trimmed)
+            inputText = ""
+            focusManager.clearFocus()
+        }
+    }
+
+    val voiceController = rememberVoiceInputController(
+        onTranscript = { transcript ->
+            val trimmed = transcript.trim()
+            if (trimmed.isBlank()) {
+                snackbarScope.launch {
+                    snackbarHostState.showSnackbar("No speech detected")
+                }
+            } else {
+                sendQuestion(trimmed)
+            }
+        },
+        onError = { message ->
+            snackbarScope.launch {
+                snackbarHostState.showSnackbar(message)
+            }
+        },
+    )
+
+    val voiceState by voiceController.state
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        hasRequestedMicPermission = true
+        if (granted) {
+            voiceController.startListening()
+        } else {
+            snackbarScope.launch {
+                snackbarHostState.showSnackbar("Microphone access is needed for voice input.")
+            }
+        }
+    }
+
+    val onMicClick: () -> Unit = micClick@{
+        when (voiceState) {
+            is VoiceInputState.Listening -> voiceController.stopListening()
+            is VoiceInputState.Processing -> return@micClick
+            is VoiceInputState.Idle -> {
+                if (inputText.trim().isNotEmpty()) {
+                    sendQuestion(inputText)
+                    return@micClick
+                }
+
+                if (!voiceController.isRecognitionAvailable) {
+                    snackbarScope.launch {
+                        snackbarHostState.showSnackbar(
+                            "Speech recognition not available on this device.",
+                        )
+                    }
+                    return@micClick
+                }
+
+                val granted = ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.RECORD_AUDIO,
+                ) == PackageManager.PERMISSION_GRANTED
+
+                if (granted) {
+                    voiceController.startListening()
+                    return@micClick
+                }
+
+                val activity = context.findActivity()
+                if (activity == null) {
+                    snackbarScope.launch {
+                        snackbarHostState.showSnackbar("Unable to request microphone permission.")
+                    }
+                    return@micClick
+                }
+
+                val showRationale = ActivityCompat.shouldShowRequestPermissionRationale(
+                    activity,
+                    Manifest.permission.RECORD_AUDIO,
+                )
+
+                when {
+                    showRationale -> showPermissionRationaleDialog = true
+                    hasRequestedMicPermission -> showOpenMicSettingsDialog = true
+                    else -> permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                }
+            }
+        }
+    }
+
+    val voiceStatusMessage = when (voiceState) {
+        is VoiceInputState.Listening -> "Listening… tap mic to stop"
+        is VoiceInputState.Processing -> "Processing speech…"
+        is VoiceInputState.Idle -> null
+    }
+
+    LaunchedEffect(isInputEnabled, voiceState) {
+        if (!isInputEnabled &&
+            (voiceState is VoiceInputState.Listening || voiceState is VoiceInputState.Processing)
+        ) {
+            voiceController.cancel()
+        }
+    }
+
     val listState = rememberLazyListState()
 
-    // Latest conversation turns are shown first.
     LaunchedEffect(messages.size, uiState.isLoading) {
         if (messages.isNotEmpty() || uiState.isLoading) {
             listState.animateScrollToItem(0)
@@ -54,13 +187,14 @@ fun ChatScreen(
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {
                     Text(
                         text = "Catechist AI",
                         style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.primary
+                        color = MaterialTheme.colorScheme.primary,
                     )
                 },
                 actions = {
@@ -69,7 +203,7 @@ fun ChatScreen(
                             Icon(
                                 imageVector = Icons.Default.Delete,
                                 contentDescription = "Clear conversation history",
-                                tint = MaterialTheme.colorScheme.primary
+                                tint = MaterialTheme.colorScheme.primary,
                             )
                         }
                     }
@@ -77,76 +211,73 @@ fun ChatScreen(
                         Icon(
                             imageVector = Icons.Default.Settings,
                             contentDescription = "Settings",
-                            tint = MaterialTheme.colorScheme.primary
+                            tint = MaterialTheme.colorScheme.primary,
                         )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
-                )
+                    containerColor = MaterialTheme.colorScheme.background,
+                ),
             )
-        }
+        },
     ) { paddingValues ->
         Column(
             modifier = Modifier
                 .padding(paddingValues)
                 .fillMaxSize()
-                .imePadding() // Rises input bar with keyboard
+                .imePadding(),
         ) {
-            // Pinned missing API key setup banner at top
             if (isApiKeyMissing && !isBannerDismissed) {
                 InfoBanner(
                     onDismiss = { isBannerDismissed = true },
-                    onAction = onNavigateToSettings
+                    onAction = onNavigateToSettings,
                 )
             }
 
-            // Message List or Empty Placeholder
             Box(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.background)
+                    .background(MaterialTheme.colorScheme.background),
             ) {
                 if (messages.isEmpty() && !uiState.isLoading) {
                     EmptyChatPlaceholder(
-                        modifier = Modifier.align(Alignment.Center)
+                        modifier = Modifier.align(Alignment.Center),
                     )
                 } else {
                     LazyColumn(
                         state = listState,
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
-                        // Add loading spinner where the newest answer will appear.
                         if (uiState.isLoading) {
                             item {
                                 Column(
                                     modifier = Modifier.fillMaxWidth(),
-                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                    verticalArrangement = Arrangement.spacedBy(10.dp),
                                 ) {
                                     uiState.pendingQuestion?.let { pendingQuestion ->
-                                MessageBubble(
-                                    message = ChatMessage(
-                                        id = Int.MIN_VALUE,
-                                        role = "user",
-                                        content = pendingQuestion,
-                                        timestamp = System.currentTimeMillis()
-                                    ),
-                                    onCitationClick = { selectedCitation = it }
-                                )
+                                        MessageBubble(
+                                            message = ChatMessage(
+                                                id = Int.MIN_VALUE,
+                                                role = "user",
+                                                content = pendingQuestion,
+                                                timestamp = System.currentTimeMillis(),
+                                            ),
+                                            onCitationClick = { selectedCitation = it },
+                                        )
                                     }
                                     Box(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .padding(vertical = 12.dp),
-                                        contentAlignment = Alignment.Center
+                                        contentAlignment = Alignment.Center,
                                     ) {
                                         CircularProgressIndicator(
                                             modifier = Modifier.size(32.dp),
                                             color = MaterialTheme.colorScheme.primary,
-                                            strokeWidth = 3.dp
+                                            strokeWidth = 3.dp,
                                         )
                                     }
                                 }
@@ -156,46 +287,45 @@ fun ChatScreen(
                         items(messages) { message ->
                             MessageBubble(
                                 message = message,
-                                onCitationClick = { selectedCitation = it }
+                                onCitationClick = { selectedCitation = it },
                             )
                         }
                     }
                 }
 
-                // Error Snackbar/Banner floating at bottom of list
                 uiState.error?.let { errorMsg ->
                     ErrorBanner(
                         message = errorMsg,
                         onDismiss = { viewModel.dismissError() },
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
-                            .padding(12.dp)
+                            .padding(12.dp),
                     )
                 }
             }
 
-            // Bottom Input Bar
             MessageInputBar(
                 text = inputText,
                 onTextChange = { inputText = it },
-                onSend = {
-                    viewModel.sendQuestion(inputText)
-                    inputText = ""
-                },
-                isEnabled = !uiState.isLoading
+                isEnabled = isInputEnabled,
+                onFieldFocusChange = { isFieldFocused = it },
+                onCancelVoice = { voiceController.cancel() },
+                focusRequester = focusRequester,
+                voiceState = voiceState,
+                isVoiceInputAvailable = voiceController.isRecognitionAvailable,
+                onMicClick = onMicClick,
+                voiceStatusMessage = voiceStatusMessage,
             )
         }
     }
 
-    // Citation dialog
     selectedCitation?.let { citation ->
         CitationDialog(
             citation = citation,
-            onDismiss = { selectedCitation = null }
+            onDismiss = { selectedCitation = null },
         )
     }
 
-    // Confirmation Clear Dialog
     if (showClearConfirmDialog) {
         AlertDialog(
             onDismissRequest = { showClearConfirmDialog = false },
@@ -203,13 +333,13 @@ fun ChatScreen(
                 Text(
                     text = "Clear conversation?",
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
                 )
             },
             text = {
                 Text(
                     text = "This will delete all messages and conversation history. This cannot be undone.",
-                    style = MaterialTheme.typography.bodyMedium
+                    style = MaterialTheme.typography.bodyMedium,
                 )
             },
             confirmButton = {
@@ -219,8 +349,8 @@ fun ChatScreen(
                         showClearConfirmDialog = false
                     },
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error
-                    )
+                        containerColor = MaterialTheme.colorScheme.error,
+                    ),
                 ) {
                     Text("Clear")
                 }
@@ -229,7 +359,65 @@ fun ChatScreen(
                 TextButton(onClick = { showClearConfirmDialog = false }) {
                     Text("Cancel")
                 }
-            }
+            },
+        )
+    }
+
+    if (showPermissionRationaleDialog) {
+        AlertDialog(
+            onDismissRequest = { showPermissionRationaleDialog = false },
+            title = { Text("Microphone access") },
+            text = {
+                Text(
+                    "Voice input needs microphone access so you can ask questions by speaking.",
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showPermissionRationaleDialog = false
+                        permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                    },
+                ) {
+                    Text("Continue")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPermissionRationaleDialog = false }) {
+                    Text("Cancel")
+                }
+            },
+        )
+    }
+
+    if (showOpenMicSettingsDialog) {
+        AlertDialog(
+            onDismissRequest = { showOpenMicSettingsDialog = false },
+            title = { Text("Microphone permission required") },
+            text = {
+                Text(
+                    "Microphone access was denied. Open Settings to enable it for voice input.",
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showOpenMicSettingsDialog = false
+                        val intent = Intent(
+                            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                            Uri.fromParts("package", context.packageName, null),
+                        )
+                        context.startActivity(intent)
+                    },
+                ) {
+                    Text("Open Settings")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showOpenMicSettingsDialog = false }) {
+                    Text("Cancel")
+                }
+            },
         )
     }
 }
@@ -241,26 +429,26 @@ private fun EmptyChatPlaceholder(modifier: Modifier = Modifier) {
             .fillMaxWidth()
             .padding(28.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Icon(
             imageVector = Icons.Default.Info,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
-            modifier = Modifier.size(56.dp)
+            modifier = Modifier.size(56.dp),
         )
         Text(
             text = "Ask a question about Catholic teaching",
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onBackground,
             fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center
+            textAlign = TextAlign.Center,
         )
         Text(
             text = "Your answer will be grounded in the Catechism of the Catholic Church",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center
+            textAlign = TextAlign.Center,
         )
     }
 }
@@ -268,30 +456,30 @@ private fun EmptyChatPlaceholder(modifier: Modifier = Modifier) {
 @Composable
 private fun InfoBanner(
     onDismiss: () -> Unit,
-    onAction: () -> Unit
+    onAction: () -> Unit,
 ) {
     Surface(
         color = MaterialTheme.colorScheme.secondaryContainer,
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Icon(
                 imageVector = Icons.Default.Info,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                modifier = Modifier.size(20.dp)
+                modifier = Modifier.size(20.dp),
             )
             Text(
                 text = "To get AI-powered answers, add your free Gemini API key in Settings.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSecondaryContainer,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
             )
             Text(
                 text = "Set Up",
@@ -301,17 +489,17 @@ private fun InfoBanner(
                 modifier = Modifier
                     .clip(RoundedCornerShape(4.dp))
                     .clickable { onAction() }
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
             )
             IconButton(
                 onClick = onDismiss,
-                modifier = Modifier.size(24.dp)
+                modifier = Modifier.size(24.dp),
             ) {
                 Icon(
                     imageVector = Icons.Default.Close,
                     contentDescription = "Dismiss",
                     tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                    modifier = Modifier.size(16.dp)
+                    modifier = Modifier.size(16.dp),
                 )
             }
         }
@@ -322,113 +510,39 @@ private fun InfoBanner(
 private fun ErrorBanner(
     message: String,
     onDismiss: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     Card(
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.errorContainer
+            containerColor = MaterialTheme.colorScheme.errorContainer,
         ),
         shape = RoundedCornerShape(8.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
-        modifier = modifier.fillMaxWidth()
+        modifier = modifier.fillMaxWidth(),
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 14.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+            horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Text(
                 text = message,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onErrorContainer,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
             )
             IconButton(
                 onClick = onDismiss,
-                modifier = Modifier.size(24.dp)
+                modifier = Modifier.size(24.dp),
             ) {
                 Icon(
                     imageVector = Icons.Default.Close,
                     contentDescription = "Dismiss error",
                     tint = MaterialTheme.colorScheme.onErrorContainer,
-                    modifier = Modifier.size(16.dp)
+                    modifier = Modifier.size(16.dp),
                 )
-            }
-        }
-    }
-}
-
-@Composable
-private fun MessageInputBar(
-    text: String,
-    onTextChange: (String) -> Unit,
-    onSend: () -> Unit,
-    isEnabled: Boolean
-) {
-    Surface(
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 2.dp,
-        modifier = Modifier
-            .fillMaxWidth()
-            .navigationBarsPadding() // Puts above system gesture bar
-    ) {
-        Column {
-            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                OutlinedTextField(
-                    value = text,
-                    onValueChange = onTextChange,
-                    placeholder = {
-                        Text(
-                            text = "Ask about Catholic doctrine…",
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    },
-                    maxLines = 4,
-                    enabled = isEnabled,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-                        unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
-                        disabledBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
-                    ),
-                    shape = RoundedCornerShape(20.dp),
-                    modifier = Modifier.weight(1f)
-                )
-
-                val isSendActive = text.trim().isNotEmpty() && isEnabled
-                IconButton(
-                    onClick = onSend,
-                    enabled = isSendActive,
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(
-                            if (isSendActive) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.12f)
-                            }
-                        )
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.Send,
-                        contentDescription = "Send",
-                        tint = if (isSendActive) {
-                            MaterialTheme.colorScheme.onPrimary
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
-                        },
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
             }
         }
     }

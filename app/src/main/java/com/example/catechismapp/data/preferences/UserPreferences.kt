@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -25,6 +26,10 @@ class UserPreferences @Inject constructor(
     companion object {
         private val KEY_DATABASE_SEEDED = booleanPreferencesKey("database_seeded")
         private val KEY_API_KEY = stringPreferencesKey("api_key")
+        private val KEY_FONT_SCALE_PERCENT = intPreferencesKey("font_scale_percent")
+        private const val DEFAULT_FONT_SCALE_PERCENT = 100
+        private const val MIN_FONT_SCALE_PERCENT = 90
+        private const val MAX_FONT_SCALE_PERCENT = 130
         private const val READ_TIMEOUT_MS = 2000L
     }
 
@@ -59,6 +64,21 @@ class UserPreferences @Inject constructor(
         context.dataStore.edit { it.remove(KEY_API_KEY) }
     }
 
+    suspend fun getFontScalePercent(): Int {
+        return withTimeoutOrNull(READ_TIMEOUT_MS) {
+            context.dataStore.data
+                .catch { emit(androidx.datastore.preferences.core.emptyPreferences()) }
+                .map { it[KEY_FONT_SCALE_PERCENT] ?: DEFAULT_FONT_SCALE_PERCENT }
+                .first()
+        } ?: DEFAULT_FONT_SCALE_PERCENT
+    }
+
+    suspend fun setFontScalePercent(percent: Int) {
+        context.dataStore.edit {
+            it[KEY_FONT_SCALE_PERCENT] = percent.coerceIn(MIN_FONT_SCALE_PERCENT, MAX_FONT_SCALE_PERCENT)
+        }
+    }
+
     /** Flow-based API key for UI observation. */
     val apiKeyFlow: Flow<String?> = context.dataStore.data
         .catch { emit(androidx.datastore.preferences.core.emptyPreferences()) }
@@ -68,4 +88,9 @@ class UserPreferences @Inject constructor(
     val isDatabaseSeededFlow: Flow<Boolean> = context.dataStore.data
         .catch { emit(androidx.datastore.preferences.core.emptyPreferences()) }
         .map { it[KEY_DATABASE_SEEDED] ?: false }
+
+    /** Flow-based font scale preference for UI observation. */
+    val fontScalePercentFlow: Flow<Int> = context.dataStore.data
+        .catch { emit(androidx.datastore.preferences.core.emptyPreferences()) }
+        .map { it[KEY_FONT_SCALE_PERCENT] ?: DEFAULT_FONT_SCALE_PERCENT }
 }

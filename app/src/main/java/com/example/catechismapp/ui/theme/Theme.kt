@@ -52,9 +52,11 @@ private val DarkColorScheme = darkColorScheme(
 fun CatechismAppTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     dynamicColor: Boolean = false, // Force custom liturgical theme by default
+    fontScale: Float = 1f,
     content: @Composable () -> Unit
 ) {
     val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
+    val typography = scaleTypography(Typography, fontScale)
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
@@ -67,7 +69,7 @@ fun CatechismAppTheme(
 
     MaterialTheme(
         colorScheme = colorScheme,
-        typography = Typography,
+        typography = typography,
         content = content
     )
 }

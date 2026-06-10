@@ -49,7 +49,7 @@ fun CccParagraphCard(
             ) {
                 Text(
                     text = "CCC §${paragraph.id}",
-                    style = MaterialTheme.typography.labelLarge,
+                    style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.Bold
                 )
@@ -70,9 +70,9 @@ fun CccParagraphCard(
                 ) {
                     Text(
                         text = paragraph.text,
-                        style = MaterialTheme.typography.bodySmall,
+                        style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurface,
-                        lineHeight = MaterialTheme.typography.bodySmall.lineHeight
+                        lineHeight = MaterialTheme.typography.bodyMedium.lineHeight
                     )
                 }
             } else {
@@ -83,7 +83,7 @@ fun CccParagraphCard(
                 }
                 Text(
                     text = previewText,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
