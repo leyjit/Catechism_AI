@@ -11,6 +11,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -27,6 +28,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.catechismapp.data.preferences.UserPreferences
 import com.example.catechismapp.ui.chat.ChatScreen
+import com.example.catechismapp.ui.favorites.FavoritesScreen
 import com.example.catechismapp.ui.search.SearchScreen
 import com.example.catechismapp.ui.settings.SettingsScreen
 import com.example.catechismapp.ui.splash.SeedingState
@@ -64,6 +66,7 @@ class MainActivity : ComponentActivity() {
 
 sealed class Screen(val route: String, val title: String, val icon: ImageVector) {
     object Chat : Screen("chat", "Chat", Icons.AutoMirrored.Filled.Send)
+    object Faves : Screen("favorites", "Faves", Icons.Default.Star)
     object Search : Screen("search", "Study", Icons.Default.Search)
     object Settings : Screen("settings", "Settings", Icons.Default.Settings)
 }
@@ -90,7 +93,7 @@ fun MainAppNavigation() {
                     containerColor = MaterialTheme.colorScheme.surface,
                     tonalElevation = 8.dp
                 ) {
-                    val items = listOf(Screen.Chat, Screen.Search, Screen.Settings)
+                    val items = listOf(Screen.Chat, Screen.Faves, Screen.Search, Screen.Settings)
                     items.forEach { screen ->
                         val isSelected = currentRoute == screen.route
                         NavigationBarItem(
@@ -159,6 +162,9 @@ fun MainAppNavigation() {
                         }
                     }
                 )
+            }
+            composable("favorites") {
+                FavoritesScreen()
             }
             composable("search") {
                 SearchScreen()

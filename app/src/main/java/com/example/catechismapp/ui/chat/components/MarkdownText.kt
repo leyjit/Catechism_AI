@@ -38,7 +38,8 @@ fun MarkdownText(
     modifier: Modifier = Modifier,
     citationKeys: Set<String> = emptySet(),
     onOpenCitation: (String) -> Unit = {},
-    onCopyRequested: (() -> Unit)? = null
+    onDoubleTapRequested: (() -> Unit)? = null,
+    onLongPressRequested: (() -> Unit)? = null,
 ) {
     val uriHandler = LocalUriHandler.current
     val linkColor = MaterialTheme.colorScheme.primary
@@ -64,7 +65,8 @@ fun MarkdownText(
                             citationKeys = citationKeys,
                             onOpenUrl = uriHandler::openUri,
                             onOpenCitation = onOpenCitation,
-                            onCopyRequested = onCopyRequested
+                            onDoubleTapRequested = onDoubleTapRequested,
+                            onLongPressRequested = onLongPressRequested,
                         )
                     }
                 }
@@ -84,7 +86,8 @@ fun MarkdownText(
                             citationKeys = citationKeys,
                             onOpenUrl = uriHandler::openUri,
                             onOpenCitation = onOpenCitation,
-                            onCopyRequested = onCopyRequested,
+                            onDoubleTapRequested = onDoubleTapRequested,
+                            onLongPressRequested = onLongPressRequested,
                             modifier = Modifier.weight(1f)
                         )
                     }
@@ -105,7 +108,8 @@ fun MarkdownText(
                             citationKeys = citationKeys,
                             onOpenUrl = uriHandler::openUri,
                             onOpenCitation = onOpenCitation,
-                            onCopyRequested = onCopyRequested,
+                            onDoubleTapRequested = onDoubleTapRequested,
+                            onLongPressRequested = onLongPressRequested,
                             modifier = Modifier.weight(1f)
                         )
                     }
@@ -119,7 +123,8 @@ fun MarkdownText(
                         citationKeys = citationKeys,
                         onOpenUrl = uriHandler::openUri,
                         onOpenCitation = onOpenCitation,
-                        onCopyRequested = onCopyRequested
+                        onDoubleTapRequested = onDoubleTapRequested,
+                        onLongPressRequested = onLongPressRequested,
                     )
                 }
             }
@@ -137,7 +142,8 @@ private fun MarkdownInlineText(
     modifier: Modifier = Modifier,
     citationKeys: Set<String> = emptySet(),
     onOpenCitation: (String) -> Unit = {},
-    onCopyRequested: (() -> Unit)? = null
+    onDoubleTapRequested: (() -> Unit)? = null,
+    onLongPressRequested: (() -> Unit)? = null,
 ) {
     val annotatedText = markdownInlineAnnotatedString(text, linkColor, citationKeys)
     var textLayoutResult by remember(text, annotatedText) { mutableStateOf<TextLayoutResult?>(null) }
@@ -145,8 +151,17 @@ private fun MarkdownInlineText(
     BasicText(
         text = annotatedText,
         style = style.copy(color = color),
-        modifier = modifier.pointerInput(annotatedText, onOpenUrl, onOpenCitation, onCopyRequested) {
+        modifier = modifier.pointerInput(
+            annotatedText,
+            onOpenUrl,
+            onOpenCitation,
+            onDoubleTapRequested,
+            onLongPressRequested,
+        ) {
             detectTapGestures(
+                onDoubleTap = {
+                    onDoubleTapRequested?.invoke()
+                },
                 onTap = { position: Offset ->
                     val layoutResult = textLayoutResult ?: return@detectTapGestures
                     val offset = layoutResult.getOffsetForPosition(position)
@@ -163,7 +178,7 @@ private fun MarkdownInlineText(
                     }
                 },
                 onLongPress = {
-                    onCopyRequested?.invoke()
+                    onLongPressRequested?.invoke()
                 }
             )
         },

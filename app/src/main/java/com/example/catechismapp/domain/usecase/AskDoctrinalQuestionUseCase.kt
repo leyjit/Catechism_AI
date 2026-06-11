@@ -75,7 +75,7 @@ class AskDoctrinalQuestionUseCase @Inject constructor(
         private const val MSG_BACKEND_UNAVAILABLE =
             "The backend harness is not reachable. Start the local backend and make sure USB port forwarding is active, then try again."
         private const val MSG_BACKEND_TIMEOUT =
-            "The backend harness is taking too long to answer. This can happen while Render wakes up or the cloud model is busy. Please try again in a moment."
+            "The hosted service is taking too long to answer. This can happen while the service starts up or the cloud model is busy. Please try again in a moment."
 
         var backendHarnessEnabledOverride: Boolean? = null
 

@@ -27,9 +27,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.example.catechismapp.voice.VoiceInputState
 
@@ -56,15 +61,39 @@ fun MessageInputBar(
     ) {
         Column {
             voiceStatusMessage?.let { message ->
-                Text(
-                    text = message,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary,
+                val listening = voiceState is VoiceInputState.Listening
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 6.dp)
+                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.85f))
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
                         .semantics { liveRegion = LiveRegionMode.Polite },
-                )
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Mic,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Text(
+                        text = if (listening) {
+                            buildAnnotatedString {
+                                append("Listening... ")
+                                withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
+                                    append("tap the mic again to stop")
+                                }
+                            }
+                        } else {
+                            buildAnnotatedString { append(message) }
+                        },
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontSize = MaterialTheme.typography.bodySmall.fontSize * 1.5625,
+                        ),
+                        color = Color.White,
+                    )
+                }
             }
 
             HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))

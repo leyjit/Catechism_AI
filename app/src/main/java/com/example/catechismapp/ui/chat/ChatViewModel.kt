@@ -6,18 +6,22 @@ import com.example.catechismapp.BuildConfig
 import com.example.catechismapp.data.local.BibleVerseDao
 import com.example.catechismapp.data.local.CatechismDao
 import com.example.catechismapp.data.local.ConversationDao
+import com.example.catechismapp.data.local.FavoriteQaPairDao
 import com.example.catechismapp.data.local.entity.ConversationEntity
+import com.example.catechismapp.data.local.entity.FavoriteQaPairEntity
 import com.example.catechismapp.data.preferences.UserPreferences
 import com.example.catechismapp.data.scripture.ScriptureReferenceParser
 import com.example.catechismapp.domain.model.AnswerErrorType
 import com.example.catechismapp.domain.model.BibleVerse
 import com.example.catechismapp.domain.model.CatechismParagraph
 import com.example.catechismapp.domain.model.ChatMessage
+import com.example.catechismapp.domain.model.QaPair
 import com.example.catechismapp.domain.usecase.AskDoctrinalQuestionUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 data class ChatUiState(
@@ -26,10 +30,16 @@ data class ChatUiState(
     val error: String? = null
 )
 
+data class MovedQaPairs(
+    val favoriteIds: List<Int>,
+    val restoredMessages: List<ConversationEntity>
+)
+
 @HiltViewModel
 class ChatViewModel @Inject constructor(
     private val askDoctrinalQuestion: AskDoctrinalQuestionUseCase,
     private val conversationDao: ConversationDao,
+    private val favoriteQaPairDao: FavoriteQaPairDao,
     private val catechismDao: CatechismDao,
     private val bibleVerseDao: BibleVerseDao,
     private val userPreferences: UserPreferences
@@ -103,6 +113,29 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    suspend fun moveQaPairsToFavorites(pairs: List<QaPair>): MovedQaPairs = withContext(Dispatchers.IO) {
+        val favoriteIds = favoriteQaPairDao.insertAll(pairs.map { it.toFavoriteEntity() })
+            .map { it.toInt() }
+        val restoredMessages = pairs.flatMap { it.toConversationEntities() }
+        conversationDao.deleteByIds(restoredMessages.map { it.id })
+        MovedQaPairs(
+            favoriteIds = favoriteIds,
+            restoredMessages = restoredMessages
+        )
+    }
+
+    suspend fun undoMoveToFavorites(move: MovedQaPairs) = withContext(Dispatchers.IO) {
+        favoriteQaPairDao.deleteByIds(move.favoriteIds)
+        conversationDao.insertAll(move.restoredMessages.sortedBy { it.timestamp })
+    }
+
+    suspend fun deleteQaPairs(pairs: List<QaPair>) = withContext(Dispatchers.IO) {
+        val messageIds = pairs.flatMap { pair ->
+            listOfNotNull(pair.question.id, pair.answer?.id)
+        }
+        conversationDao.deleteByIds(messageIds)
+    }
+
     fun dismissError() {
         _uiState.update { it.copy(error = null) }
     }
@@ -171,4 +204,40 @@ class ChatViewModel @Inject constructor(
 
         return turns.asReversed().flatten()
     }
+}
+
+private fun QaPair.toFavoriteEntity(): FavoriteQaPairEntity {
+    val answer = answer
+    return FavoriteQaPairEntity(
+        questionContent = question.content,
+        answerContent = answer?.content.orEmpty(),
+        questionTimestamp = question.timestamp,
+        answerTimestamp = answer?.timestamp ?: question.timestamp,
+        paragraphIds = answer?.paragraphs?.joinToString(",") { it.id.toString() }.orEmpty(),
+        verseRefs = answer?.verses?.joinToString(",") { it.reference }.orEmpty()
+    )
+}
+
+private fun QaPair.toConversationEntities(): List<ConversationEntity> {
+    val entities = mutableListOf(
+        ConversationEntity(
+            id = question.id,
+            role = question.role,
+            content = question.content,
+            timestamp = question.timestamp
+        )
+    )
+    answer?.let { answer ->
+        entities.add(
+            ConversationEntity(
+                id = answer.id,
+                role = answer.role,
+                content = answer.content,
+                timestamp = answer.timestamp,
+                paragraphIds = answer.paragraphs.joinToString(",") { it.id.toString() },
+                verseRefs = answer.verses.joinToString(",") { it.reference }
+            )
+        )
+    }
+    return entities
 }

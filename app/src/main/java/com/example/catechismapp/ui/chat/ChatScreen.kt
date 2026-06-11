@@ -15,10 +15,15 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SelectAll
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -26,8 +31,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -35,10 +44,13 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.catechismapp.domain.model.ChatMessage
+import com.example.catechismapp.domain.model.QaPair
 import com.example.catechismapp.ui.chat.components.Citation
 import com.example.catechismapp.ui.chat.components.CitationDialog
 import com.example.catechismapp.ui.chat.components.MessageBubble
 import com.example.catechismapp.ui.chat.components.MessageInputBar
+import com.example.catechismapp.ui.chat.components.QaPairCard
+import com.example.catechismapp.ui.chat.components.toPlainCopyText
 import com.example.catechismapp.util.findActivity
 import com.example.catechismapp.voice.VoiceInputState
 import com.example.catechismapp.voice.rememberVoiceInputController
@@ -56,6 +68,7 @@ fun ChatScreen(
 
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
+    val clipboardManager = LocalClipboardManager.current
     val snackbarHostState = remember { SnackbarHostState() }
     val snackbarScope = rememberCoroutineScope()
 
@@ -64,13 +77,66 @@ fun ChatScreen(
     var hasRequestedMicPermission by rememberSaveable { mutableStateOf(false) }
     var showPermissionRationaleDialog by remember { mutableStateOf(false) }
     var showOpenMicSettingsDialog by remember { mutableStateOf(false) }
+    var isConversationSearchActive by rememberSaveable { mutableStateOf(false) }
+    var conversationSearchQuery by rememberSaveable { mutableStateOf("") }
+    var selectedPairIds by rememberSaveable { mutableStateOf(emptyList<Int>()) }
 
     var isBannerDismissed by remember { mutableStateOf(false) }
     var showClearConfirmDialog by remember { mutableStateOf(false) }
     var selectedCitation by remember { mutableStateOf<Citation?>(null) }
 
     val focusRequester = remember { FocusRequester() }
+    val searchFocusRequester = remember { FocusRequester() }
     val isInputEnabled = !uiState.isLoading
+    val qaPairs = remember(messages) { messages.toQaPairs() }
+    val isSelectionMode = selectedPairIds.isNotEmpty()
+    fun clearSelection() {
+        selectedPairIds = emptyList()
+    }
+    fun togglePairSelection(pairId: Int) {
+        selectedPairIds = if (pairId in selectedPairIds) {
+            selectedPairIds - pairId
+        } else {
+            selectedPairIds + pairId
+        }
+    }
+    fun selectedPairs(): List<QaPair> = qaPairs.filter { it.id in selectedPairIds }
+    fun copySelectedPairs() {
+        val selected = selectedPairs()
+        if (selected.isEmpty()) return
+        val text = selected.toCopyText()
+        clipboardManager.setText(AnnotatedString(text))
+        snackbarScope.launch {
+            snackbarHostState.showSnackbar("${selected.size} Q&A pairs copied")
+        }
+        clearSelection()
+    }
+    fun deleteSelectedPairs() {
+        val selected = selectedPairs()
+        if (selected.isEmpty()) return
+        val count = selected.size
+        snackbarScope.launch {
+            viewModel.deleteQaPairs(selected)
+            clearSelection()
+            snackbarHostState.showSnackbar("$count Q&A pairs deleted")
+        }
+    }
+    fun moveSelectedPairsToFavorites() {
+        val selected = selectedPairs()
+        if (selected.isEmpty()) return
+        val count = selected.size
+        snackbarScope.launch {
+            val moved = viewModel.moveQaPairsToFavorites(selected)
+            clearSelection()
+            val result = snackbarHostState.showSnackbar(
+                message = "Moved $count Q&A pairs to Favorites.",
+                actionLabel = "Undo"
+            )
+            if (result == SnackbarResult.ActionPerformed) {
+                viewModel.undoMoveToFavorites(moved)
+            }
+        }
+    }
     val sendQuestion: (String) -> Unit = { question ->
         val trimmed = question.trim()
         if (trimmed.isNotEmpty()) {
@@ -170,6 +236,20 @@ fun ChatScreen(
         is VoiceInputState.Idle -> null
     }
 
+    val searchQuery = conversationSearchQuery.trim()
+    val visiblePairs = remember(qaPairs, searchQuery) {
+        if (searchQuery.isBlank()) {
+            qaPairs
+        } else {
+            qaPairs.filter { pair ->
+                pair.containsSearchQuery(searchQuery)
+            }
+        }
+    }
+    fun selectAllVisiblePairs() {
+        selectedPairIds = visiblePairs.map { it.id }
+    }
+
     LaunchedEffect(isInputEnabled, voiceState) {
         if (!isInputEnabled &&
             (voiceState is VoiceInputState.Listening || voiceState is VoiceInputState.Processing)
@@ -178,7 +258,23 @@ fun ChatScreen(
         }
     }
 
+    LaunchedEffect(isConversationSearchActive) {
+        if (isConversationSearchActive) {
+            searchFocusRequester.requestFocus()
+        }
+    }
+
     val listState = rememberLazyListState()
+    val isAtTop by remember {
+        derivedStateOf {
+            listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0
+        }
+    }
+    val showScrollFab by remember {
+        derivedStateOf {
+            listState.canScrollBackward || listState.canScrollForward
+        }
+    }
 
     LaunchedEffect(messages.size, uiState.isLoading) {
         if (messages.isNotEmpty() || uiState.isLoading) {
@@ -191,28 +287,117 @@ fun ChatScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
-                        text = "Catechist AI",
-                        style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
+                    if (isSelectionMode) {
+                        Text(
+                            text = "${selectedPairIds.size} selected",
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    } else if (isConversationSearchActive) {
+                        TextField(
+                            value = conversationSearchQuery,
+                            onValueChange = { conversationSearchQuery = it },
+                            placeholder = {
+                                Text(
+                                    text = "Search conversation",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Search,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            },
+                            singleLine = true,
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = Color.Transparent,
+                                unfocusedContainerColor = Color.Transparent,
+                                disabledContainerColor = Color.Transparent,
+                                focusedIndicatorColor = Color.Transparent,
+                                unfocusedIndicatorColor = Color.Transparent,
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .focusRequester(searchFocusRequester),
+                        )
+                    } else {
+                        Text(
+                            text = "Catechist AI",
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
                 },
                 actions = {
-                    if (messages.isNotEmpty()) {
-                        IconButton(onClick = { showClearConfirmDialog = true }) {
+                    if (isSelectionMode) {
+                        IconButton(onClick = { selectAllVisiblePairs() }) {
                             Icon(
-                                imageVector = Icons.Default.Delete,
-                                contentDescription = "Clear conversation history",
+                                imageVector = Icons.Default.SelectAll,
+                                contentDescription = "Select all visible Q&A pairs",
                                 tint = MaterialTheme.colorScheme.primary,
                             )
                         }
-                    }
-                    IconButton(onClick = onNavigateToSettings) {
-                        Icon(
-                            imageVector = Icons.Default.Settings,
-                            contentDescription = "Settings",
-                            tint = MaterialTheme.colorScheme.primary,
-                        )
+                        IconButton(onClick = { moveSelectedPairsToFavorites() }) {
+                            Icon(
+                                imageVector = Icons.Default.Star,
+                                contentDescription = "Move selected Q&A pairs to Favorites",
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                        IconButton(onClick = { copySelectedPairs() }) {
+                            Icon(
+                                imageVector = Icons.Default.ContentCopy,
+                                contentDescription = "Copy selected Q&A pairs",
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                        IconButton(onClick = { deleteSelectedPairs() }) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Delete selected Q&A pairs",
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                        IconButton(onClick = { clearSelection() }) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Cancel Q&A pair selection",
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    } else if (isConversationSearchActive) {
+                        IconButton(
+                            onClick = {
+                                conversationSearchQuery = ""
+                                isConversationSearchActive = false
+                                focusManager.clearFocus()
+                            },
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Close conversation search",
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    } else {
+                        if (messages.isNotEmpty()) {
+                            IconButton(onClick = { showClearConfirmDialog = true }) {
+                                Icon(
+                                    imageVector = Icons.Default.Delete,
+                                    contentDescription = "Clear conversation history",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                )
+                            }
+                        }
+                        IconButton(onClick = { isConversationSearchActive = true }) {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = "Search conversation history",
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -240,9 +425,19 @@ fun ChatScreen(
                     .fillMaxWidth()
                     .background(MaterialTheme.colorScheme.background),
             ) {
-                if (messages.isEmpty() && !uiState.isLoading) {
+                if (qaPairs.isEmpty() && !uiState.isLoading) {
                     EmptyChatPlaceholder(
                         modifier = Modifier.align(Alignment.Center),
+                    )
+                } else if (searchQuery.isNotBlank() && visiblePairs.isEmpty()) {
+                    Text(
+                        text = "No matching messages found.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .padding(32.dp),
                     )
                 } else {
                     LazyColumn(
@@ -251,7 +446,7 @@ fun ChatScreen(
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
-                        if (uiState.isLoading) {
+                        if (uiState.isLoading && searchQuery.isBlank()) {
                             item {
                                 Column(
                                     modifier = Modifier.fillMaxWidth(),
@@ -284,12 +479,53 @@ fun ChatScreen(
                             }
                         }
 
-                        items(messages) { message ->
-                            MessageBubble(
-                                message = message,
+                        items(visiblePairs, key = { it.id }) { pair ->
+                            val isSelected = pair.id in selectedPairIds
+                            QaPairCard(
+                                pair = pair,
+                                isSelected = isSelected,
+                                isSelectionMode = isSelectionMode,
+                                onToggleSelection = { togglePairSelection(pair.id) },
+                                onLongPressSelection = {
+                                    if (!isSelected) {
+                                        togglePairSelection(pair.id)
+                                    }
+                                },
                                 onCitationClick = { selectedCitation = it },
                             )
                         }
+                    }
+                }
+
+                if (showScrollFab && visiblePairs.isNotEmpty()) {
+                    FloatingActionButton(
+                        onClick = {
+                            snackbarScope.launch {
+                                if (isAtTop) {
+                                    listState.animateScrollToItem(visiblePairs.lastIndex)
+                                } else {
+                                    listState.animateScrollToItem(0)
+                                }
+                            }
+                        },
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(16.dp),
+                    ) {
+                        Icon(
+                            imageVector = if (isAtTop) {
+                                Icons.Default.KeyboardArrowDown
+                            } else {
+                                Icons.Default.KeyboardArrowUp
+                            },
+                            contentDescription = if (isAtTop) {
+                                "Jump to bottom of conversation"
+                            } else {
+                                "Jump to top of conversation"
+                            },
+                        )
                     }
                 }
 
@@ -547,3 +783,50 @@ private fun ErrorBanner(
         }
     }
 }
+
+private fun List<ChatMessage>.toQaPairs(): List<QaPair> {
+    val pairs = mutableListOf<QaPair>()
+    var index = 0
+    while (index < size) {
+        val question = this[index]
+        if (!question.isUser) {
+            index += 1
+            continue
+        }
+
+        val answer = getOrNull(index + 1)?.takeIf { !it.isUser }
+        pairs.add(
+            QaPair(
+                id = question.id,
+                question = question,
+                answer = answer
+            )
+        )
+        index += if (answer != null) 2 else 1
+    }
+    return pairs
+}
+
+private fun QaPair.containsSearchQuery(query: String): Boolean =
+    question.matchesSearchQuery(query) || answer?.matchesSearchQuery(query) == true
+
+private fun ChatMessage.matchesSearchQuery(query: String): Boolean =
+    content.contains(query, ignoreCase = true) ||
+        paragraphs.any { it.text.contains(query, ignoreCase = true) } ||
+        verses.any {
+            it.reference.contains(query, ignoreCase = true) ||
+                it.text.contains(query, ignoreCase = true)
+        }
+
+private fun List<QaPair>.toCopyText(): String =
+    joinToString("\n\n") { pair ->
+        buildString {
+            appendLine("Question:")
+            appendLine(toPlainCopyText(pair.question.content))
+            pair.answer?.let { answer ->
+                appendLine()
+                appendLine("Answer:")
+                append(toPlainCopyText(answer.content))
+            }
+        }
+    }

@@ -91,29 +91,6 @@ fun SettingsScreen(
                 .navigationBarsPadding(),
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    text = "SOURCES OF TRUTH",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Bold
-                )
-
-                Text(
-                    text = "The Catechism of the Catholic Church (Second Edition)",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                Text(
-                    text = "Douay-Rheims Bible (Challoner Revision, A.D. 1749-1752)",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
-
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
                     text = "TEXT SIZE",
@@ -204,14 +181,67 @@ fun SettingsScreen(
                 )
 
                 Text(
-                    text = "Answers grounded in the Catechism of the Catholic Church.",
+                    text = "Sources of Truth",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Text(
+                    text = "Catechist AI grounds its answers in the Catechism of the Catholic Church (Second Edition) and the Douay-Rheims Bible (Challoner Revision, A.D. 1749-1752). Scripture citations are shown alongside Catechism references whenever relevant.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
                 Text(
-                    text = "Vibe-coded on 4 June 2026 by LeejayT",
-                    style = MaterialTheme.typography.bodySmall,
+                    text = "AI / Backend Disclosure",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Text(
+                    text = "Catechist AI sends your question to a hosted AI backend to generate source-grounded answers from the Catechism and Scripture; your chat history stays on your device, and no API key is stored on your phone.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Text(
+                    text = "Data Storage / Deletion",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Text(
+                    text = "Conversation history is stored locally on your device and can be cleared anytime from within the app's Settings. If you uninstall the app, its locally stored chat data is removed from the device.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Text(
+                    text = "Privacy Policy Summary",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Text(
+                    text = "Catechist AI uses locally stored conversation history to help you review past chats. When you submit a question, the app transmits that question to a hosted service to generate a source-grounded response. We do not store your API key on your device. You can delete your local conversation history at any time from Settings. If any backend logs or retention apply, they should be described separately and accurately in the full policy.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Text(
+                    text = "Support Email",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Text(
+                    text = "For support, feedback, bug reports, or questions about Catechist AI, email leejayt@outlook.com. Please include a brief description of the issue and your device model if you are reporting a technical problem.",
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }

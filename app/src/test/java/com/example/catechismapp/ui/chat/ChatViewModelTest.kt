@@ -3,6 +3,7 @@ package com.example.catechismapp.ui.chat
 import com.example.catechismapp.data.local.BibleVerseDao
 import com.example.catechismapp.data.local.CatechismDao
 import com.example.catechismapp.data.local.ConversationDao
+import com.example.catechismapp.data.local.FavoriteQaPairDao
 import com.example.catechismapp.data.local.entity.ConversationEntity
 import com.example.catechismapp.data.preferences.UserPreferences
 import com.example.catechismapp.domain.model.AnswerErrorType
@@ -26,6 +27,7 @@ class ChatViewModelTest {
 
     private val askUseCase = mockk<AskDoctrinalQuestionUseCase>()
     private val conversationDao = mockk<ConversationDao>()
+    private val favoriteQaPairDao = mockk<FavoriteQaPairDao>()
     private val catechismDao = mockk<CatechismDao>()
     private val bibleVerseDao = mockk<BibleVerseDao>()
     private val userPreferences = mockk<UserPreferences>()
@@ -43,6 +45,7 @@ class ChatViewModelTest {
         viewModel = ChatViewModel(
             askDoctrinalQuestion = askUseCase,
             conversationDao = conversationDao,
+            favoriteQaPairDao = favoriteQaPairDao,
             catechismDao = catechismDao,
             bibleVerseDao = bibleVerseDao,
             userPreferences = userPreferences
@@ -74,6 +77,7 @@ class ChatViewModelTest {
         viewModel = ChatViewModel(
             askDoctrinalQuestion = askUseCase,
             conversationDao = conversationDao,
+            favoriteQaPairDao = favoriteQaPairDao,
             catechismDao = catechismDao,
             bibleVerseDao = bibleVerseDao,
             userPreferences = userPreferences

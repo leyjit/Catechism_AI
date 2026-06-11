@@ -5,6 +5,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
@@ -30,6 +31,10 @@ import com.example.catechismapp.domain.model.CatechismParagraph
 fun MessageBubble(
     message: ChatMessage,
     modifier: Modifier = Modifier,
+    isSelected: Boolean = false,
+    isSelectionMode: Boolean = false,
+    onToggleSelection: () -> Unit = {},
+    onLongPressSelection: () -> Unit = {},
     onCitationClick: (Citation) -> Unit = {}
 ) {
     var isSourcesExpanded by remember { mutableStateOf(false) }
@@ -71,18 +76,26 @@ fun MessageBubble(
                 MaterialTheme.colorScheme.surfaceVariant
             },
             tonalElevation = if (message.isUser) 0.dp else 1.dp,
-            modifier = if (message.isUser) {
-                Modifier
-                    .widthIn(max = 290.dp)
-                    .combinedClickable(
-                        onClick = {},
-                        onLongClick = {
+            border = if (isSelected) {
+                BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+            } else {
+                null
+            },
+            modifier = Modifier
+                .widthIn(max = 290.dp)
+                .combinedClickable(
+                    onClick = {
+                        if (isSelectionMode) {
+                            onToggleSelection()
+                        }
+                    },
+                    onDoubleClick = {
+                        if (!isSelectionMode) {
                             copyPlainTextToClipboard(message.content, clipboardManager, context)
                         }
-                    )
-            } else {
-                Modifier.widthIn(max = 290.dp)
-            }
+                    },
+                    onLongClick = onLongPressSelection,
+                )
         ) {
             if (message.isUser) {
                 Text(
@@ -98,9 +111,12 @@ fun MessageBubble(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     citationKeys = citationKeys,
                     onOpenCitation = { key -> resolveCitationClick(key, message, onCitationClick) },
-                    onCopyRequested = {
-                        copyPlainTextToClipboard(message.content, clipboardManager, context)
+                    onDoubleTapRequested = {
+                        if (!isSelectionMode) {
+                            copyPlainTextToClipboard(message.content, clipboardManager, context)
+                        }
                     },
+                    onLongPressRequested = onLongPressSelection,
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
                 )
             }
@@ -218,7 +234,7 @@ private fun copyPlainTextToClipboard(
     Toast.makeText(context, "Message copied", Toast.LENGTH_SHORT).show()
 }
 
-private fun toPlainCopyText(rawText: String): String {
+fun toPlainCopyText(rawText: String): String {
     val linkRegex = Regex("""\[(.+?)]\((https?://[^)\s]+)\)""")
     return rawText
         .lines()
